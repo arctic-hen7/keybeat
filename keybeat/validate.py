@@ -3,11 +3,11 @@ import subprocess
 import base64
 import tempfile
 import time
-from .utils import KEYBEAT_ARMOURED_HEADER, KEYBEAT_ARMOURED_FOOTER
+from .utils import KEYBEAT_ARMOURED_HEADER, KEYBEAT_ARMOURED_FOOTER, KeybeatError
+import json
 
-# Gets the time at which the given proof was made, cryptographically verifying it using
-# the given public key.
-def get_proof_time(proof, pubkey = None):
+# Validates a proof cryptographically and returns its packet.
+def decrypt_proof(proof, pubkey = None):
     proof = proof.strip()
     # Write the public key to a temporary file so we can use GPG independent of the host
     # keyring
@@ -25,22 +25,30 @@ def get_proof_time(proof, pubkey = None):
         if not res.returncode == 0:
             raise KeybeatError("invalid signature")
 
-        block_hash = res.stdout.decode()
-        # Fetch details of the block whose hash we've referenced
-        response = requests.get(f"https://blockchain.info/rawblock/{block_hash}")
-        block_data = response.json()
+        packet = json.loads(res.stdout.decode())
+        return packet
 
-        # Sanity check of the hashes and then return the timestamp, that's all we care about
-        if not block_hash == block_data["hash"]:
-            raise KeybeatError("sanity check failed, retrieved block has incorrect hash")
+# Validates the given proof packet by downloading the associated block's details and returning the
+# time the block was mined (and thereby the earliest the proof could possibly have been issued).
+#
+# This will return the time as a number of seconds since Unix epoch.
+def get_time_for_proof_packet(packet):
+    # Fetch details of the block whose hash we've referenced
+    response = requests.get(f"https://blockchain.info/rawblock/{packet['block_hash']}")
+    block_data = response.json()
 
-        proof_time = int(block_data["time"])
-        return proof_time
+    # Sanity check of the hashes and then return the timestamp, that's all we care about
+    if not packet["block_hash"] == block_data["hash"]:
+        raise KeybeatError("sanity check failed, retrieved block has incorrect hash")
+
+    proof_time = int(block_data["time"])
+    return proof_time
 
 # Validates the given proof using the given public key, additionally ensuring it was within
 # `max_age` seconds of the current time.
 def proof_is_valid(proof, max_age, pubkey):
-    proof_time = get_proof_time(proof, pubkey)
+    proof_packet = decrypt_proof(proof)
+    proof_time = get_time_for_proof_packet(proof_packet)
 
     proof_age = int(time.time()) - proof_time
     return proof_age > 0 and proof_age < max_age
