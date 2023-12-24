@@ -11,6 +11,9 @@ python = "^3.7"
 requests = "^2.31.0"
 python-dateutil = "^2.8.2"
 
+[tool.poetry.scripts]
+keybeat = 'keybeat.__main__:main'
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

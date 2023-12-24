@@ -1,4 +1,4 @@
 version="0.3.2"
 
 [scripts]
-dev = "poetry run python -m keybeat %%"
+dev = "poetry run keybeat %%"
