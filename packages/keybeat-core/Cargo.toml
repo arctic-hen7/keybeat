@@ -1,0 +1,11 @@
+[package]
+name = "keybeat-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4.39"
+thiserror = "2.0.9"
+ureq = { version = "2.12.1", features = [ "json" ] }
+cryptosystem = { version = "0.1", git = "https://github.com/arctic-hen7/cryptosystem" }
+serde = { version = "1.0.216", features = ["derive"] }
