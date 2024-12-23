@@ -34,3 +34,12 @@ pub enum ProofError<S: SigningCryptosystem + 'static> {
     #[error(transparent)]
     GetBlockError(#[from] GetBlockError),
 }
+
+/// Errors that can occur while parsing a proof from a string.
+#[derive(Error, Debug)]
+pub enum ParseError {
+    #[error("failed to decode proof from base64")]
+    DecodeFailed(#[source] base64::DecodeError),
+    #[error("failed to deserialize proof")]
+    DeserFailed(#[source] bincode::Error),
+}

@@ -1,3 +1,3 @@
 [workspace]
-members = [ "packages/keybeat-core" ]
+members = [ "packages/keybeat-cli", "packages/keybeat-core" ]
 resolver = "2"

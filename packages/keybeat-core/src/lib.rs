@@ -1,22 +1,28 @@
+use base64::prelude::*;
 use chrono::{DateTime, Utc};
 use cryptosystem::{PublicKey, SecretKey, Signature, SigningCryptosystem};
-use error::{GetBlockError, ProofError};
-use serde::Serialize;
+use error::{GetBlockError, ParseError, ProofError};
+use serde::{Deserialize, Serialize};
 use ureq::serde_json::Value;
 
 mod error;
 
 /// A time-based proof using the hash of the most recent block in the Bitcoin blockchain to prove
 /// it occurred after a certain time.
-pub struct Proof<T: Serialize, S: SigningCryptosystem> {
+///
+/// If the internal message should be kept secret, it should be encrypted (and possibly have the
+/// plaintext separately signed) before being passed to this system.
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct Proof<S: SigningCryptosystem> {
     block_hash: String,
-    message: T,
+    message: String,
     signature: Signature<S>,
 }
-impl<T: Serialize, S: SigningCryptosystem> Proof<T, S> {
+impl<S: SigningCryptosystem> Proof<S> {
     /// Creates a new proof on the given message, using the given secret key and the latest block
     /// in the Bitcoin blockchain.
-    pub fn new_latest(message: T, secret_key: &SecretKey<S>) -> Result<Self, ProofError<S>> {
+    pub fn new_latest(message: String, secret_key: &SecretKey<S>) -> Result<Self, ProofError<S>> {
         let block_hash = get_latest_block_hash()?;
         let signature = secret_key
             .sign((&message, &block_hash))
@@ -31,7 +37,7 @@ impl<T: Serialize, S: SigningCryptosystem> Proof<T, S> {
     /// is *not* checked for validity, however an invalid block hash will not validate properly
     /// later!
     pub fn new_manual(
-        message: T,
+        message: String,
         block_hash: &str,
         secret_key: &SecretKey<S>,
     ) -> Result<Self, ProofError<S>> {
@@ -55,8 +61,27 @@ impl<T: Serialize, S: SigningCryptosystem> Proof<T, S> {
     ) -> Result<Result<DateTime<Utc>, GetBlockError>, ProofError<S>> {
         public_key
             .verify(&self.signature, (&self.message, &self.block_hash))
-            .map_err(ProofError::SignFailed)?;
+            .map_err(ProofError::ValidateFailed)?;
         Ok(get_block_time(&self.block_hash))
+    }
+
+    /// Converts this proof to a string.
+    pub fn to_string(&self) -> String {
+        let bytes = bincode::serialize(&self).unwrap();
+        BASE64_STANDARD.encode(&bytes)
+    }
+
+    /// Parses a proof from the given string.
+    pub fn parse(proof_str: &str) -> Result<Self, ParseError> {
+        let bytes = BASE64_STANDARD
+            .decode(proof_str)
+            .map_err(ParseError::DecodeFailed)?;
+        bincode::deserialize(&bytes).map_err(ParseError::DeserFailed)
+    }
+
+    /// Returns the message in this proof.
+    pub fn message(&self) -> &String {
+        &self.message
     }
 }
 
